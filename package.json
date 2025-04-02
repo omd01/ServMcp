@@ -1,0 +1,28 @@
+{
+  "name": "mcp-manager",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "electron-builder"
+  },
+  "keywords": [
+    "mcp",
+    "server",
+    "management",
+    "ai-tools"
+  ],
+  "author": "",
+  "license": "ISC",
+  "description": "Management interface for MCP servers with AI tool integration",
+  "devDependencies": {
+    "electron": "^29.2.0",
+    "electron-builder": "^24.6.3"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "electron-store": "^8.1.0",
+    "js-yaml": "^4.1.0"
+  }
+}

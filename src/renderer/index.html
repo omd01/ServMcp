@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>MCP Server Manager</title>
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self';">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <h1>MCP Server Manager</h1>
+    </header>
+    
+    <div class="content">
+      <div class="dashboard">
+        <div class="sidebar">
+          <h2>Available MCP Servers</h2>
+          <div id="mcpServerList" class="server-list">
+            <!-- MCP servers will be dynamically inserted here -->
+            <div class="loading">Loading MCP servers...</div>
+          </div>
+          <div class="sidebar-actions">
+            <button id="importButton" class="action-button">Import MCP</button>
+          </div>
+        </div>
+        
+        <div id="serverDetail" class="server-detail hidden">
+          <h3 id="detailTitle">Server Details</h3>
+          <div class="server-actions">
+            <button id="installButton" class="action-button">Install</button>
+            <button id="uninstallButton" class="action-button danger-button">Uninstall</button>
+            <button id="settingsButton" class="action-button settings-button" title="Settings">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+            </button>
+          </div>
+          
+          <div class="server-info">
+            <div id="mcpTypeLabel" class="info-label">Type: <span id="mcpType">-</span></div>
+            <div id="mcpVersionLabel" class="info-label">Version: <span id="mcpVersion">-</span></div>
+          </div>
+          
+          <div class="ai-tools-section">
+            <h4>AI Tools Integration</h4>
+            <div id="aiToolsList" class="tools-list">
+              <!-- AI tools will be dynamically inserted here -->
+            </div>
+          </div>
+          
+          <div class="console-section">
+            <h4>Server Console</h4>
+            <div id="consoleOutput" class="console">
+              <!-- Console output will be displayed here -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Modal for credential input -->
+  <div id="credentialModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>API Credentials Required</h3>
+        <span class="close-button">&times;</span>
+      </div>
+      <div class="modal-body">
+        <p id="credentialMessage">Please enter your API credentials for this tool:</p>
+        <div class="form-group">
+          <label for="apiKeyInput">API Key:</label>
+          <input type="password" id="apiKeyInput" class="form-control">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="saveCredentialButton" class="action-button">Save</button>
+        <button id="cancelCredentialButton" class="cancel-button">Cancel</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Modal for MCP settings -->
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>MCP Settings</h3>
+        <span class="close-settings-button close-button">&times;</span>
+      </div>
+      <div class="modal-body">
+        <p id="settingsMessage">Configure settings for this MCP server:</p>
+        <div id="settingsForm">
+          <!-- Dynamic settings form will be inserted here -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="saveSettingsButton" class="action-button">Save</button>
+        <button id="cancelSettingsButton" class="cancel-button">Cancel</button>
+      </div>
+    </div>
+  </div>
+  
+  <script src="app.js"></script>
+</body>
+</html> 
