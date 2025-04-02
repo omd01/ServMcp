@@ -194,6 +194,54 @@ ipcMain.handle('get-mcp-settings', (event, mcpId) => {
 // Save MCP settings
 ipcMain.handle('save-mcp-settings', (event, { mcpId, settings }) => {
   store.set(`mcpSettings.${mcpId}`, settings);
+  
+  // Also update environment variables in external config if they exist
+  try {
+    const externalConfigPath = path.join(app.getPath('home'), '.cursor', 'mcp.json');
+    if (fs.existsSync(externalConfigPath)) {
+      const fileContent = fs.readFileSync(externalConfigPath, 'utf8');
+      try {
+        const externalConfig = JSON.parse(fileContent);
+        
+        // Check if this MCP exists in external config
+        if (externalConfig.mcpServers && externalConfig.mcpServers[mcpId]) {
+          // Initialize env if it doesn't exist
+          if (!externalConfig.mcpServers[mcpId].env) {
+            externalConfig.mcpServers[mcpId].env = {};
+          }
+          
+          // Add settings to environment variables 
+          // Focus on API keys and credential-related settings
+          Object.keys(settings).forEach(key => {
+            if (key.toLowerCase().includes('api_key') || 
+                key.toLowerCase().includes('apikey') || 
+                key.toLowerCase().includes('token') || 
+                key.toLowerCase().includes('credential') ||
+                key.toLowerCase().includes('password')) {
+              
+              // Store it as environment variable
+              externalConfig.mcpServers[mcpId].env[key.toUpperCase()] = settings[key];
+            }
+          });
+          
+          // Save the updated config
+          fs.writeFileSync(externalConfigPath, JSON.stringify(externalConfig, null, 2));
+          
+          if (mainWindow) {
+            mainWindow.webContents.send('mcp-output', { 
+              mcpId, 
+              data: `Updated environment variables in external config with API keys\n` 
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Error updating external config with environment variables:', e);
+      }
+    }
+  } catch (error) {
+    console.error('Error updating external config with environment variables:', error);
+  }
+  
   return { success: true };
 });
 
@@ -326,8 +374,33 @@ ipcMain.handle('import-mcp', async () => {
       installed: false,
       running: false,
       hasConfig: false,
+      configSchema: null,
       aiTools: mcpInfo.aiTools || []
     };
+    
+    // Check if the MCP has configSchema with API keys or other sensitive fields
+    if (mcpInfo.configSchema && mcpInfo.configSchema.properties) {
+      // Look for API key related properties in the schema
+      const hasCredentialFields = Object.keys(mcpInfo.configSchema.properties).some(key => 
+        key.toLowerCase().includes('api_key') || 
+        key.toLowerCase().includes('apikey') || 
+        key.toLowerCase().includes('token') || 
+        key.toLowerCase().includes('credential') ||
+        key.toLowerCase().includes('password')
+      );
+      
+      if (hasCredentialFields) {
+        mcpServer.hasConfig = true;
+        mcpServer.configSchema = mcpInfo.configSchema;
+        
+        if (mainWindow) {
+          mainWindow.webContents.send('mcp-info', { 
+            mcpId: mcpInfo.id, 
+            data: `MCP requires API keys or credentials configuration.\n` 
+          });
+        }
+      }
+    }
     
     mcpServers.push(mcpServer);
     store.set('mcpServers', mcpServers);
@@ -374,6 +447,43 @@ ipcMain.handle('install-mcp', async (event, mcpId, selectedTools) => {
   
   try {
     const mcp = mcpServers[mcpIndex];
+    
+    // Check if API keys are required but not configured
+    if (mcp.hasConfig && mcp.configSchema) {
+      const settings = store.get(`mcpSettings.${mcpId}`) || {};
+      const requiredApiKeys = [];
+      
+      // Check for required API keys in configSchema
+      if (mcp.configSchema.properties) {
+        Object.keys(mcp.configSchema.properties).forEach(key => {
+          const isApiKey = key.toLowerCase().includes('api_key') || 
+                          key.toLowerCase().includes('apikey') || 
+                          key.toLowerCase().includes('token') || 
+                          key.toLowerCase().includes('credential') ||
+                          key.toLowerCase().includes('password');
+                          
+          // Check if required or has "required" in the property description
+          const property = mcp.configSchema.properties[key];
+          const isRequired = (mcp.configSchema.required || []).includes(key) ||
+                            (property.description && property.description.toLowerCase().includes('required'));
+          
+          if (isApiKey && (!settings[key] || settings[key].trim() === '') && isRequired) {
+            requiredApiKeys.push(key);
+          }
+        });
+      }
+      
+      // If there are required API keys that aren't configured, request configuration first
+      if (requiredApiKeys.length > 0) {
+        return { 
+          success: false, 
+          message: 'API keys or credentials required',
+          requiresConfig: true,
+          configSchema: mcp.configSchema,
+          requiredFields: requiredApiKeys
+        };
+      }
+    }
     
     // Handle default MCP server with null path
     if (mcp.id === 'default-mcp' && !mcp.path) {
@@ -925,6 +1035,34 @@ process.on('SIGTERM', () => {
           externalConfig.mcpServers = {};
         }
         
+        // Get API keys and credentials from settings
+        const mcpSettings = store.get(`mcpSettings.${mcpId}`) || {};
+        const envVars = {};
+        
+        // Extract API keys and credentials from the settings
+        if (mcp.hasConfig && mcp.configSchema && mcp.configSchema.properties) {
+          Object.keys(mcp.configSchema.properties).forEach(key => {
+            const property = mcp.configSchema.properties[key];
+            const isApiKey = key.toLowerCase().includes('api_key') || 
+                            key.toLowerCase().includes('apikey') || 
+                            key.toLowerCase().includes('token') || 
+                            key.toLowerCase().includes('credential') ||
+                            key.toLowerCase().includes('password');
+            
+            if (isApiKey && mcpSettings[key]) {
+              // Add as environment variable (conventionally uppercase)
+              envVars[key.toUpperCase()] = mcpSettings[key];
+              
+              if (mainWindow) {
+                mainWindow.webContents.send('mcp-output', { 
+                  mcpId, 
+                  data: `Added ${key} to environment variables.\n` 
+                });
+              }
+            }
+          });
+        }
+        
         // Add or update the MCP configuration
         if (mcpId === 'mongodb-mcp' || mcpId === 'mongo-mcp') {
           // Special configuration for MongoDB MCP
@@ -934,7 +1072,7 @@ process.on('SIGTERM', () => {
               'mongo-mcp',
               'mongodb://<username>:<password>@<host>:<port>/<database>?authSource=admin'
             ],
-            env: {}
+            env: {...envVars} // Add API keys as environment variables
           };
           
           if (mainWindow) {
@@ -951,7 +1089,7 @@ process.on('SIGTERM', () => {
             externalConfig.mcpServers[mcpId] = {
               command: 'node',
               args: [binIndexPath],
-              env: {}
+              env: {...envVars} // Add API keys as environment variables
             };
             
             if (mainWindow) {
@@ -965,7 +1103,7 @@ process.on('SIGTERM', () => {
             externalConfig.mcpServers[mcpId] = {
               command: 'node',
               args: [path.join(mcpDir, mcpServers[mcpIndex].mainScript)],
-              env: {}
+              env: {...envVars} // Add API keys as environment variables
             };
           }
         }
@@ -1159,6 +1297,54 @@ ipcMain.handle('toggle-ai-tool', async (event, { mcpId, toolId }) => {
   // Toggle the connection status
   mcpServers[mcpIndex].aiTools[toolIndex].connected = !tool.connected;
   store.set('mcpServers', mcpServers);
+  
+  // If connecting the tool, update the external config to include API keys
+  if (mcpServers[mcpIndex].aiTools[toolIndex].connected) {
+    try {
+      // Get MCP settings that might contain API keys
+      const mcpSettings = store.get(`mcpSettings.${mcpId}`) || {};
+      
+      // Check for specific API keys based on tool
+      const apiKeyName = toolId + '_api_key';
+      
+      // If we have API key for this tool, update external config
+      if (mcpSettings[apiKeyName]) {
+        const externalConfigPath = path.join(app.getPath('home'), '.cursor', 'mcp.json');
+        
+        if (fs.existsSync(externalConfigPath)) {
+          try {
+            const fileContent = fs.readFileSync(externalConfigPath, 'utf8');
+            const externalConfig = JSON.parse(fileContent);
+            
+            // Check if this MCP exists in external config
+            if (externalConfig.mcpServers && externalConfig.mcpServers[mcpId]) {
+              // Initialize env if it doesn't exist
+              if (!externalConfig.mcpServers[mcpId].env) {
+                externalConfig.mcpServers[mcpId].env = {};
+              }
+              
+              // Add API key as environment variable
+              externalConfig.mcpServers[mcpId].env[apiKeyName.toUpperCase()] = mcpSettings[apiKeyName];
+              
+              // Save the updated config
+              fs.writeFileSync(externalConfigPath, JSON.stringify(externalConfig, null, 2));
+              
+              if (mainWindow) {
+                mainWindow.webContents.send('mcp-output', { 
+                  mcpId, 
+                  data: `Updated external config with ${toolId} API key as environment variable\n` 
+                });
+              }
+            }
+          } catch (e) {
+            console.error('Error updating external config with tool API key:', e);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error updating external config with tool API key:', error);
+    }
+  }
   
   return { 
     success: true, 

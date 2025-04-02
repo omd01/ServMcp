@@ -17,6 +17,12 @@ const cancelCredentialButton = document.getElementById('cancelCredentialButton')
 const apiKeyInput = document.getElementById('apiKeyInput');
 const credentialMessage = document.getElementById('credentialMessage');
 
+// Environment Variables Elements
+const envVariablesInfo = document.getElementById('envVariablesInfo');
+const envVariablesList = document.getElementById('envVariablesList');
+const envActions = document.getElementById('envActions');
+const saveEnvButton = document.getElementById('saveEnvButton');
+
 // Settings Modal Elements
 const settingsModal = document.getElementById('settingsModal');
 const closeSettingsButton = document.querySelector('.close-settings-button');
@@ -187,10 +193,26 @@ async function selectMcpServer(mcpId) {
   // Load current settings if available
   if (selectedMcp.hasConfig) {
     currentSettings = await window.api.getMcpSettings(mcpId);
+  } else {
+    currentSettings = {};
   }
   
-  // Update button states
+  // Update button states - but don't let this override env var validation
+  // We'll set basic button state here but let env var validation take precedence
   updateButtonStates(selectedMcp);
+  
+  // Initially disable the install button until validation completes, but only if the MCP has environment variables
+  if (selectedMcp.hasConfig && selectedMcp.configSchema && 
+      selectedMcp.configSchema.properties && 
+      Object.keys(selectedMcp.configSchema.properties).length > 0) {
+    installButton.disabled = true;
+  } else {
+    // For MCPs with no env vars, set button state based on installation status
+    installButton.disabled = selectedMcp.installed;
+  }
+  
+  // Render environment variables first so they can control install button state
+  renderEnvironmentVariables(selectedMcp);
   
   // Render AI tools
   renderAiTools(selectedMcp);
@@ -200,78 +222,82 @@ async function selectMcpServer(mcpId) {
   
   // Show the detail panel
   serverDetail.classList.remove('hidden');
+  
+  // Force validation to ensure install button is in correct state
+  setTimeout(() => checkEnvVarsAndUpdateInstallButton(selectedMcp), 100);
 }
 
 // Update the button states based on the MCP server state
 function updateButtonStates(mcp) {
+  if (!mcp) return;
+  
+  // First check if environment variables need to be filled - but don't run this function
+  // if we're in the process of showing environment variables
+  const form = document.getElementById('envVariablesForm');
+  if (form && mcp.hasConfig && mcp.configSchema && mcp.configSchema.required && mcp.configSchema.required.length > 0) {
+    // We're already showing environment variables, let checkEnvVarsAndUpdateInstallButton handle this
+    // Just set states for other buttons
+    
+    // Hide/show uninstall button based on installation status
+    uninstallButton.style.display = mcp.installed ? 'inline-block' : 'none';
+    // Disable uninstall button if the server is running
+    uninstallButton.disabled = mcp.running;
+    return;
+  }
+  
+  // Normal button states
   installButton.disabled = mcp.installed;
-  uninstallButton.disabled = !mcp.installed || mcp.running;
+  installButton.title = mcp.installed ? 'MCP is already installed' : 'Install this MCP';
+  
+  // Hide/show uninstall button based on installation status
+  uninstallButton.style.display = mcp.installed ? 'inline-block' : 'none';
+  // Disable uninstall button if the server is running
+  uninstallButton.disabled = mcp.running;
 }
 
 // Render the AI tools list
 function renderAiTools(mcp) {
-  // Clear the current list
+  // Hide AI tools section completely
   aiToolsList.innerHTML = '';
+  aiToolsList.style.display = 'none';
   
-  // If the MCP server is not installed, show a message
-  if (!mcp.installed) {
-    aiToolsList.innerHTML = '<div class="loading">Install the MCP server to view available AI tools</div>';
-    return;
+  // Hide the heading/label for the AI tools section if it exists
+  const aiToolsHeader = document.querySelector('.ai-tools-header') || document.querySelector('h4');
+  if (aiToolsHeader && aiToolsHeader.textContent.includes('AI Tools')) {
+    aiToolsHeader.style.display = 'none';
   }
-  
-  // If no AI tools, show a message
-  if (!mcp.aiTools || mcp.aiTools.length === 0) {
-    aiToolsList.innerHTML = '<div class="loading">No AI tools available for this MCP</div>';
-    return;
-  }
-  
-  // Create an element for each AI tool
-  mcp.aiTools.forEach(tool => {
-    const toolElement = document.createElement('div');
-    toolElement.className = 'tool-item';
-    
-    // Create the checkbox
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.className = 'tool-checkbox';
-    checkbox.id = `tool-${tool.id}`;
-    checkbox.checked = tool.connected;
-    
-    // Add change handler to toggle the tool connection
-    checkbox.addEventListener('change', async () => {
-      await toggleAiTool(mcp.id, tool.id);
-    });
-    
-    // Create the label
-    const label = document.createElement('label');
-    label.className = 'tool-name';
-    label.htmlFor = `tool-${tool.id}`;
-    label.textContent = tool.name;
-    
-    // Add credential indicator if required
-    let credentialIndicator = '';
-    if (tool.requiresCredentials) {
-      credentialIndicator = document.createElement('span');
-      credentialIndicator.className = 'credential-required';
-      credentialIndicator.textContent = 'Requires API Key';
-    }
-    
-    // Append elements to the tool item
-    toolElement.appendChild(checkbox);
-    toolElement.appendChild(label);
-    if (credentialIndicator) {
-      toolElement.appendChild(credentialIndicator);
-    }
-    
-    aiToolsList.appendChild(toolElement);
-  });
 }
 
 // Toggle an AI tool connection
 async function toggleAiTool(mcpId, toolId) {
+  // If trying to enable a tool, check if API keys are required
+  const mcp = mcpServers.find(mcp => mcp.id === mcpId);
+  const tool = mcp.aiTools.find(tool => tool.id === toolId);
+  
+  // Don't check if we're disconnecting
+  if (tool.connected) {
+    const result = await window.api.toggleAiTool(mcpId, toolId);
+    await refreshMcpServers();
+    return;
+  }
+  
+  // For Claude and Cursor, we need to check for API keys
+  if (toolId === 'claude' || toolId === 'cursor') {
+    // Check if we already have the API key in the settings
+    const settings = await window.api.getMcpSettings(mcpId) || {};
+    let apiKeyName = toolId + '_api_key';
+    
+    if (!settings[apiKeyName] || settings[apiKeyName].trim() === '') {
+      // Show the credential modal for this tool
+      showToolCredentialModal(toolId, mcpId);
+      return;
+    }
+  }
+  
+  // If we have the API key or it's not required, proceed with toggle
   const result = await window.api.toggleAiTool(mcpId, toolId);
   
-  // If credentials are required, show the modal
+  // If credentials are required for other reasons, show the modal
   if (!result.success && result.requiresCredentials) {
     showCredentialModal(toolId);
     return;
@@ -281,17 +307,36 @@ async function toggleAiTool(mcpId, toolId) {
   await refreshMcpServers();
 }
 
-// Show the credential input modal
-function showCredentialModal(toolId) {
+// Show credential modal specifically for tool API keys
+function showToolCredentialModal(toolId, mcpId) {
   currentToolId = toolId;
+  currentMcpId = mcpId;
   
   // Find the tool name
-  const mcp = mcpServers.find(mcp => mcp.id === currentMcpId);
+  const mcp = mcpServers.find(mcp => mcp.id === mcpId);
   const tool = mcp.aiTools.find(tool => tool.id === toolId);
   
-  credentialMessage.textContent = `Please enter your API credentials for ${tool.name}:`;
+  // Clear previous value
   apiKeyInput.value = '';
   
+  // Update the message to be more specific for tool connections
+  if (toolId === 'claude') {
+    credentialMessage.innerHTML = `
+      <strong>Claude API Key Required</strong><br>
+      Please enter your Claude API key to connect to this tool.<br>
+      <small>This will be saved and used as an environment variable for this MCP.</small>
+    `;
+  } else if (toolId === 'cursor') {
+    credentialMessage.innerHTML = `
+      <strong>Cursor API Key Required</strong><br>
+      Please enter your Cursor API key to connect to this tool.<br>
+      <small>This will be saved and used as an environment variable for this MCP.</small>
+    `;
+  } else {
+    credentialMessage.textContent = `Please enter your API credentials for ${tool.name}:`;
+  }
+  
+  // Show the modal
   credentialModal.classList.remove('hidden');
 }
 
@@ -301,7 +346,7 @@ function hideCredentialModal() {
   currentToolId = null;
 }
 
-// Save credentials and try to connect again
+// Save credentials and try to connect again - modified for tool API keys
 async function saveCredentials() {
   const apiKey = apiKeyInput.value.trim();
   
@@ -311,7 +356,21 @@ async function saveCredentials() {
     return;
   }
   
-  // Save the credentials
+  // Save the credentials to the MCP settings
+  const settings = await window.api.getMcpSettings(currentMcpId) || {};
+  
+  // For Claude and Cursor, use a specific naming pattern
+  if (currentToolId === 'claude' || currentToolId === 'cursor') {
+    const apiKeyName = currentToolId + '_api_key';
+    settings[apiKeyName] = apiKey;
+    
+    // Save to MCP settings
+    await window.api.saveMcpSettings(currentMcpId, settings);
+    
+    addConsoleMessage(`${currentToolId.charAt(0).toUpperCase() + currentToolId.slice(1)} API key added to environment variables.`);
+  }
+  
+  // Also save as credential for the tool
   await window.api.saveCredentials(currentToolId, { apiKey });
   
   // Try to toggle the AI tool again
@@ -349,12 +408,34 @@ function showSettingsModal() {
       // Create label
       const label = document.createElement('label');
       label.htmlFor = `setting-${key}`;
-      label.textContent = `${property.title || key}${required ? ' *' : ''}:`;
       
-      // Create input
+      // Highlight API keys and required fields
+      const isApiKey = key.toLowerCase().includes('api_key') || 
+                      key.toLowerCase().includes('apikey') || 
+                      key.toLowerCase().includes('token') || 
+                      key.toLowerCase().includes('credential') ||
+                      key.toLowerCase().includes('password');
+                      
+      // Add visual indicator for API keys
+      if (isApiKey) {
+        label.textContent = `${property.title || key}${required ? ' *' : ''} 🔑:`;
+        label.className = 'api-key-label'; // Add a class for styling
+      } else {
+        label.textContent = `${property.title || key}${required ? ' *' : ''}:`;
+      }
+      
+      // Create input with proper type for credentials
       const input = document.createElement('input');
-      input.type = property.format === 'password' ? 'password' : 'text';
-      input.className = 'form-control';
+      
+      // Use password type for API keys and credentials
+      if (isApiKey) {
+        input.type = 'password';
+        input.className = 'form-control api-key-input'; // Add a class for styling
+      } else {
+        input.type = property.format === 'password' ? 'password' : 'text';
+        input.className = 'form-control';
+      }
+      
       input.id = `setting-${key}`;
       input.name = key;
       input.value = value;
@@ -365,7 +446,14 @@ function showSettingsModal() {
       if (property.description) {
         helpText = document.createElement('span');
         helpText.className = 'form-control-help';
-        helpText.textContent = property.description;
+        
+        // Add additional instructions for API keys
+        if (isApiKey) {
+          helpText.innerHTML = `${property.description} <br><em>Will be set as an environment variable for the MCP.</em>`;
+          helpText.className = 'form-control-help api-key-help';
+        } else {
+          helpText.textContent = property.description;
+        }
       }
       
       // Append elements to the form group
@@ -447,13 +535,32 @@ async function importMcpPackage() {
       // Select the newly imported MCP
       if (result.mcpId) {
         selectMcpServer(result.mcpId);
-        addConsoleMessage(`
+        
+        // Get the MCP details to check if it needs environment variables
+        const importedMcp = mcpServers.find(mcp => mcp.id === result.mcpId);
+        const needsEnvVars = importedMcp && importedMcp.hasConfig && 
+                            importedMcp.configSchema && 
+                            importedMcp.configSchema.properties && 
+                            Object.keys(importedMcp.configSchema.properties).length > 0;
+        
+        if (needsEnvVars) {
+          addConsoleMessage(`
+MCP package imported: ${result.mcpId}
+This MCP requires environment variables. Please configure them above before installing.
+To install this MCP:
+1. Fill in the required environment variables and click "Save Environment Variables"
+2. Click the Install button to install dependencies and configure the MCP
+3. The external configuration at C:\\Users\\<username>\\.cursor\\mcp.json will be updated
+`);
+        } else {
+          addConsoleMessage(`
 MCP package imported: ${result.mcpId}
 To install this MCP, click the Install button. This will:
 1. Install any dependencies
 2. Configure the MCP for use with the selected AI tools
 3. Update the external configuration at C:\\Users\\<username>\\.cursor\\mcp.json
 `);
+        }
       }
     } else {
       // Show error message
@@ -468,6 +575,34 @@ To install this MCP, click the Install button. This will:
 // Install an MCP server
 async function installMcpServer() {
   if (!currentMcpId) return;
+  
+  // Check if all required environment variables are filled
+  const selectedMcp = mcpServers.find(mcp => mcp.id === currentMcpId);
+  
+  // Only check required fields if the MCP has a config schema with required fields
+  if (selectedMcp.hasConfig && 
+      selectedMcp.configSchema && 
+      selectedMcp.configSchema.required && 
+      selectedMcp.configSchema.required.length > 0) {
+    
+    const requiredFields = selectedMcp.configSchema.required;
+    const settings = currentSettings || {};
+    
+    let missingFields = [];
+    
+    // Check only explicitly required fields from schema
+    requiredFields.forEach(field => {
+      if (!settings[field] || settings[field].trim() === '') {
+        missingFields.push(field);
+      }
+    });
+    
+    if (missingFields.length > 0) {
+      addConsoleMessage(`Cannot install: Missing required environment variables: ${missingFields.join(', ')}`, true);
+      addConsoleMessage('Please fill in all required environment variables and save them before installing.', true);
+      return;
+    }
+  }
   
   // Show tool selection modal
   showToolSelectionModal();
@@ -508,7 +643,7 @@ async function uninstallMcpServer() {
   if (!currentMcpId) return;
   
   // Confirm uninstallation with the user
-  if (!confirm(`Are you sure you want to uninstall ${detailTitle.textContent}?`)) {
+  if (!confirm(`Are you sure you want to uninstall ${detailTitle.textContent}? This will remove all associated environment variables and settings.`)) {
     return;
   }
   
@@ -523,6 +658,23 @@ async function uninstallMcpServer() {
   if (result.success) {
     // Add uninstallation message to console
     addConsoleMessage('MCP server uninstalled successfully');
+    
+    // Clear environment variables and settings for this MCP
+    try {
+      await window.api.saveMcpSettings(currentMcpId, {});
+      currentSettings = {};
+      addConsoleMessage('Environment variables and settings removed');
+    } catch (error) {
+      addConsoleMessage(`Warning: Could not clear environment variables: ${error.message}`, true);
+    }
+    
+    // Clear environment variables UI
+    if (envVariablesList) {
+      envVariablesList.innerHTML = '';
+    }
+    if (envVariablesInfo) {
+      envVariablesInfo.innerHTML = '<div class="info-message">MCP has been uninstalled. Environment variables were cleared.</div>';
+    }
     
     // Refresh MCP servers and update UI
     await refreshMcpServers();
@@ -556,6 +708,7 @@ async function refreshMcpServers() {
     if (selectedMcp) {
       updateButtonStates(selectedMcp);
       renderAiTools(selectedMcp);
+      renderEnvironmentVariables(selectedMcp);
     }
   }
 }
@@ -564,9 +717,42 @@ async function refreshMcpServers() {
 function setupEventListeners() {
   // Button click handlers
   importButton.addEventListener('click', importMcpPackage);
-  installButton.addEventListener('click', installMcpServer);
+  
+  // Replace the standard click handler with one that double-checks environment variables
+  installButton.addEventListener('click', function(event) {
+    // First validate environment variables
+    const selectedMcp = mcpServers.find(mcp => mcp.id === currentMcpId);
+    
+    // Skip validation if no MCP is selected
+    if (!selectedMcp) return;
+    
+    // Double check required environment variables
+    if (selectedMcp.hasConfig && selectedMcp.configSchema && selectedMcp.configSchema.properties) {
+      const form = document.getElementById('envVariablesForm');
+      
+      // If we have a form with environment variables, verify they're all filled
+      if (form) {
+        checkEnvVarsAndUpdateInstallButton(selectedMcp);
+        
+        // If the button is disabled after validation, stop here
+        if (installButton.disabled) {
+          event.preventDefault();
+          event.stopPropagation();
+          
+          // Simple message in console instead of flashing alert
+          addConsoleMessage("Please save your environment variables before installing", false);
+          return;
+        }
+      }
+    }
+    
+    // If validation passes, proceed with installation
+    installMcpServer();
+  });
+  
   uninstallButton.addEventListener('click', uninstallMcpServer);
   settingsButton.addEventListener('click', showSettingsModal);
+  saveEnvButton.addEventListener('click', saveEnvironmentVariables);
   
   // Credential modal button handlers
   closeModalButton.addEventListener('click', hideCredentialModal);
@@ -621,6 +807,279 @@ function getSelectedTools() {
     selectedTools.push(checkbox.value);
   });
   return selectedTools;
+}
+
+// Show the credential input modal for general credentials
+function showCredentialModal(toolId) {
+  currentToolId = toolId;
+  
+  // Find the tool name
+  const mcp = mcpServers.find(mcp => mcp.id === currentMcpId);
+  const tool = mcp.aiTools.find(tool => tool.id === toolId);
+  
+  credentialMessage.textContent = `Please enter your API credentials for ${tool.name}:`;
+  apiKeyInput.value = '';
+  
+  credentialModal.classList.remove('hidden');
+}
+
+// Render the environment variables from the manifest
+function renderEnvironmentVariables(mcp) {
+  // Clear the current list
+  envVariablesList.innerHTML = '';
+  envVariablesInfo.innerHTML = '';
+  envActions.style.display = 'none';
+  
+  // If the MCP server has no config or no properties, enable the install button
+  if (!mcp.configSchema || !mcp.configSchema.properties || Object.keys(mcp.configSchema.properties).length === 0) {
+    envVariablesInfo.innerHTML = '<div class="info-message">No environment variables required for this MCP.</div>';
+    // Enable the install button immediately if not installed
+    if (mcp && !mcp.installed) {
+      installButton.disabled = false;
+      installButton.title = 'Install this MCP';
+    }
+    return;
+  }
+  
+  const schema = mcp.configSchema;
+  const properties = schema.properties || {};
+  
+  // Check if there are any properties that look like environment variables
+  const envVarKeys = Object.keys(properties).filter(key => 
+    key.toLowerCase().includes('api_key') || 
+    key.toLowerCase().includes('apikey') || 
+    key.toLowerCase().includes('token') || 
+    key.toLowerCase().includes('secret') ||
+    key.toLowerCase().includes('password') ||
+    key.toLowerCase().includes('credential') ||
+    key.toLowerCase().includes('env_') ||
+    key.toLowerCase().includes('environment')
+  );
+  
+  if (envVarKeys.length === 0) {
+    envVariablesInfo.innerHTML = '<div class="info-message">No environment variables identified in the MCP configuration.</div>';
+    return;
+  }
+  
+  // Get current settings
+  const settings = currentSettings || {};
+  
+  // Show info about environment variables
+  envVariablesInfo.innerHTML = '<div class="info-message">This MCP requires environment variables. Please configure them before installation.</div>';
+  
+  // Create a form for environment variables
+  const form = document.createElement('form');
+  form.id = 'envVariablesForm';
+  form.className = 'env-form';
+  
+  // Create inputs for each environment variable
+  envVarKeys.forEach(key => {
+    const property = properties[key];
+    const value = settings[key] || '';
+    
+    // Only consider fields as required if explicitly marked in the schema
+    const required = schema.required && schema.required.includes(key);
+    
+    // Create form group
+    const formGroup = document.createElement('div');
+    formGroup.className = 'form-group';
+    
+    // Create label
+    const label = document.createElement('label');
+    label.htmlFor = `env-${key}`;
+    label.className = required ? 'env-label required-field' : 'env-label';
+    label.textContent = `${property.title || key}${required ? ' *' : ''}:`;
+    
+    // Create input
+    const input = document.createElement('input');
+    input.type = key.toLowerCase().includes('password') || 
+                key.toLowerCase().includes('secret') || 
+                key.toLowerCase().includes('api_key') || 
+                key.toLowerCase().includes('token') ? 'password' : 'text';
+    input.className = 'form-control env-input';
+    input.id = `env-${key}`;
+    input.name = key;
+    input.value = value;
+    input.required = required;
+    input.dataset.envVar = 'true';
+    input.placeholder = required ? 'Required' : 'Optional';
+    
+    // Create help text if available
+    let helpText = null;
+    if (property.description) {
+      helpText = document.createElement('span');
+      helpText.className = 'form-control-help';
+      helpText.innerHTML = property.description + (required ? ' <strong>(Required)</strong>' : '');
+    }
+    
+    // Append elements to the form group
+    formGroup.appendChild(label);
+    formGroup.appendChild(input);
+    if (helpText) {
+      formGroup.appendChild(helpText);
+    }
+    
+    form.appendChild(formGroup);
+  });
+  
+  envVariablesList.appendChild(form);
+  
+  // Show the save button
+  envActions.style.display = 'flex';
+  
+  // Check if all required env vars are filled and update the install button
+  // Immediately check and update the install button state
+  checkEnvVarsAndUpdateInstallButton(mcp);
+  
+  // Add event listener to the save button
+  saveEnvButton.onclick = saveEnvironmentVariables;
+  
+  // Add event listeners to inputs to update the install button status in real-time
+  const inputs = form.querySelectorAll('input[data-env-var="true"]');
+  inputs.forEach(input => {
+    input.addEventListener('input', () => {
+      // Only update button state
+      checkEnvVarsAndUpdateInstallButton(mcp);
+    });
+    
+    // For better UX, only keep focus handler without styling changes
+    input.addEventListener('focus', () => {
+      // No styling changes
+    });
+    
+    input.addEventListener('blur', () => {
+      checkEnvVarsAndUpdateInstallButton(mcp);
+    });
+  });
+}
+
+// Save environment variables
+async function saveEnvironmentVariables() {
+  if (!currentMcpId) return;
+  
+  // Get the form
+  const form = document.getElementById('envVariablesForm');
+  if (!form) return;
+  
+  // Get the MCP to check required fields
+  const currentMcp = mcpServers.find(mcp => mcp.id === currentMcpId);
+  const explicitlyRequiredFields = currentMcp?.configSchema?.required || [];
+  
+  // Collect form data
+  const formData = {};
+  const inputs = form.querySelectorAll('input[data-env-var="true"]');
+  
+  let isValid = true;
+  let missingRequiredFields = [];
+  
+  inputs.forEach(input => {
+    const fieldName = input.name;
+    
+    // Field is required only if explicitly marked in schema
+    const isRequired = explicitlyRequiredFields.includes(fieldName);
+    
+    if (isRequired && (!input.value || input.value.trim() === '')) {
+      isValid = false;
+      input.classList.add('invalid');
+      missingRequiredFields.push(fieldName);
+    } else {
+      input.classList.remove('invalid');
+      formData[input.name] = input.value.trim();
+    }
+  });
+  
+  if (!isValid) {
+    alert(`Please fill in all required environment variables: ${missingRequiredFields.join(', ')}`);
+    return;
+  }
+  
+  // Save the environment variables as settings
+  await window.api.saveMcpSettings(currentMcpId, formData);
+  
+  // Update current settings
+  currentSettings = formData;
+  
+  // Show success message
+  addConsoleMessage('Environment variables saved successfully');
+  
+  // Update install button state
+  checkEnvVarsAndUpdateInstallButton(currentMcp);
+}
+
+// Check if all required environment variables are filled and update the install button
+function checkEnvVarsAndUpdateInstallButton(mcp) {
+  if (!mcp) return;
+  
+  // If the MCP has no config or properties, enable the install button if not installed
+  if (!mcp.configSchema || !mcp.configSchema.properties || Object.keys(mcp.configSchema.properties).length === 0) {
+    installButton.disabled = mcp.installed;
+    installButton.title = mcp.installed ? 'MCP is already installed' : 'Install this MCP';
+    return;
+  }
+  
+  const form = document.getElementById('envVariablesForm');
+  if (!form) {
+    // No form means no env vars to validate, so enable install
+    installButton.disabled = mcp.installed;
+    installButton.title = mcp.installed ? 'MCP is already installed' : 'Install this MCP';
+    return;
+  }
+  
+  const schema = mcp.configSchema;
+  const properties = schema.properties || {};
+  
+  // Get explicitly required fields from schema
+  const explicitlyRequiredFields = schema.required || [];
+  
+  // If there are no required fields, enable the install button
+  if (explicitlyRequiredFields.length === 0) {
+    installButton.disabled = mcp.installed;
+    installButton.title = mcp.installed ? 'MCP is already installed' : 'Install this MCP';
+    return;
+  }
+  
+  // Find all inputs that represent required fields based on schema
+  const allInputs = form.querySelectorAll('input[data-env-var="true"]');
+  let allRequiredFilled = true;
+  let missingFields = [];
+  
+  allInputs.forEach(input => {
+    const fieldName = input.name;
+    
+    // Field is required only if explicitly marked in schema
+    const isRequired = explicitlyRequiredFields.includes(fieldName);
+    
+    if (isRequired && (!input.value || input.value.trim() === '')) {
+      allRequiredFilled = false;
+      missingFields.push(fieldName);
+    }
+  });
+  
+  // Disable install button if required env vars are not filled
+  if (!allRequiredFilled && !mcp.installed) {
+    installButton.disabled = true;
+    installButton.title = 'Please fill in all required environment variables';
+    
+    // Remove any previous alert messages
+    let alertMsg = document.querySelector('.env-alert');
+    if (alertMsg) {
+      alertMsg.remove();
+    }
+  } else if (!mcp.installed) {
+    // Only enable if all required fields are filled AND the MCP is not installed
+    installButton.disabled = false;
+    installButton.title = 'Install this MCP';
+    
+    // Remove any previous alert messages
+    const alertMsg = document.querySelector('.env-alert');
+    if (alertMsg) {
+      alertMsg.remove();
+    }
+  } else {
+    // If already installed, button should be disabled
+    installButton.disabled = true;
+    installButton.title = 'MCP is already installed';
+  }
 }
 
 // Start the application when the DOM is loaded

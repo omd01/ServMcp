@@ -43,10 +43,23 @@
             <div id="mcpVersionLabel" class="info-label">Version: <span id="mcpVersion">-</span></div>
           </div>
           
-          <div class="ai-tools-section">
+          <div class="ai-tools-section" style="display: none;">
             <h4>AI Tools Integration</h4>
             <div id="aiToolsList" class="tools-list">
               <!-- AI tools will be dynamically inserted here -->
+            </div>
+          </div>
+          
+          <div class="env-variables-section">
+            <h4>Environment Variables</h4>
+            <div id="envVariablesInfo" class="env-info">
+              <!-- Environment variables info will be shown here -->
+            </div>
+            <div id="envVariablesList" class="env-variables-list">
+              <!-- Environment variables will be dynamically inserted here -->
+            </div>
+            <div class="env-actions" id="envActions" style="display: none;">
+              <button id="saveEnvButton" class="action-button">Save Environment Variables</button>
             </div>
           </div>
           
