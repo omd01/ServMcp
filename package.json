@@ -1,6 +1,6 @@
 {
   "name": "ServMcp",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A desktop application for managing MCP (Machine Completion Protocol) servers.",
   "main": "main.js",
   "scripts": {
