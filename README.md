@@ -1,68 +1,98 @@
 # MCP Server Manager
 
-A desktop application for managing Machine Communication Protocol (MCP) servers with AI tool integration.
+![MCP Server Manager](https://img.shields.io/badge/MCP-Server%20Manager-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+A desktop application for managing MCP (Machine Completion Protocol) servers that integrate with AI tools like Claude and Cursor.
+
+![screenshot-placeholder](docs/images/screenshot.png)
 
 ## Features
 
-- Dashboard of available MCP servers
-- Local installation and execution of MCP servers
-- Start/stop functionality for MCP servers
-- AI tools configuration and integration
-- Secure credential management for AI tools
-- Real-time console output from MCP servers
+- 🚀 Import and manage MCP servers
+- 🔧 Configure environment variables for your MCPs
+- 🔌 Easy installation and configuration
+- 🖥️ Monitor server console output in real-time
+- 🧠 Integrate with various AI tools
 
-## Getting Started
+## Installation
 
 ### Prerequisites
 
-- Node.js (v14 or later)
-- npm (v6 or later)
+- Node.js 14.x or newer
+- npm or yarn
+- Electron
 
-### Installation
+### Setup
 
-```bash
-# Clone the repository
-git clone <repository-url>
-cd mcp-manager
+1. Clone the repository:
+   ```
+   git clone https://github.com/yourusername/ServMcp.git
+   cd ServMcp
+   ```
 
-# Install dependencies
-npm install
+2. Install dependencies:
+   ```
+   npm install
+   ```
 
-# Start the application
-npm start
-```
-
-### Building for Distribution
-
-```bash
-# Build for your current platform
-npm run build
-```
+3. Start the application:
+   ```
+   npm start
+   ```
 
 ## Usage
 
-1. Launch the application to see the dashboard of available MCP servers
-2. Select an MCP server from the list to view details
-3. Click "Install" to install the selected MCP server
-4. Click "Start" to start the MCP server
-5. Configure AI tools integration by checking the boxes next to each tool
-6. Enter API credentials when prompted
-7. Monitor the server output in the console section
-8. Click "Stop" to stop the running MCP server
+### Importing an MCP
+
+1. Click the "Import MCP" button
+2. Select your MCP package (ZIP file)
+3. Configure any required environment variables
+4. Click "Install" to install the MCP
+
+### Managing MCPs
+
+- **Install**: Select an MCP and click the "Install" button
+- **Uninstall**: For installed MCPs, click the "Uninstall" button
+- **Configure**: Set environment variables before installation
+
+### Environment Variables
+
+The application automatically detects environment variables from the MCP manifest and provides a user-friendly interface to configure them.
 
 ## Development
 
-The application is built with Electron and follows this structure:
+### Project Structure
 
-- `main.js` - Main process file
-- `src/main/` - Main process modules
-- `src/renderer/` - Renderer process files (HTML, CSS, JS)
-- `src/data/` - Data storage and configurations
+- `src/main` - Main Electron process
+- `src/renderer` - Renderer process (UI)
+- `src/common` - Shared code
 
-## Future Enhancements
+### Building
 
-- Cloud-based MCP uploads
-- User account management
-- Additional AI tool integrations
-- Enhanced security features
-- Performance monitoring and logging 
+```
+npm run build
+```
+
+### Packaging
+
+```
+npm run package
+```
+
+## Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to submit pull requests, report issues, and suggest improvements.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Code of Conduct
+
+Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before participating in our community.
+
+## Acknowledgments
+
+- The Electron team for their excellent framework
+- All our contributors and supporters 
