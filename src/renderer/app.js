@@ -377,34 +377,7 @@ function showSettingsModal() {
       
       settingsForm.appendChild(formGroup);
     });
-  } else {
-    // For MongoDB MCP specifically
-    const formGroup = document.createElement('div');
-    formGroup.className = 'form-group';
-    
-    const label = document.createElement('label');
-    label.htmlFor = 'setting-mongoConnectionUrl';
-    label.textContent = 'MongoDB Connection URL *:';
-    
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'form-control';
-    input.id = 'setting-mongoConnectionUrl';
-    input.name = 'mongoConnectionUrl';
-    input.value = currentSettings.mongoConnectionUrl || '';
-    input.required = true;
-    
-    const helpText = document.createElement('span');
-    helpText.className = 'form-control-help';
-    helpText.textContent = 'Connection URL in the format mongodb://<username>:<password>@<host>:<port>/<database>?authSource=admin';
-    
-    formGroup.appendChild(label);
-    formGroup.appendChild(input);
-    formGroup.appendChild(helpText);
-    
-    settingsForm.appendChild(formGroup);
   }
-  
   // Show the modal
   settingsModal.classList.remove('hidden');
 }
@@ -450,31 +423,45 @@ async function saveSettings() {
 // Import an MCP package
 async function importMcpPackage() {
   try {
-    // Call the main process to handle the import
+    addConsoleMessage('Importing MCP package...');
+    
+    // Show a loading indicator in the MCP server list
+    const loadingElement = document.createElement('div');
+    loadingElement.className = 'loading';
+    loadingElement.textContent = 'Importing MCP package...';
+    mcpServerList.appendChild(loadingElement);
+    
+    // Call the import function
     const result = await window.api.importMcp();
     
+    // Remove the loading indicator
+    mcpServerList.removeChild(loadingElement);
+    
     if (result.success) {
-      // Show success message
-      addConsoleMessage(`MCP package imported successfully: ${result.mcpId}`);
+      // Add import message to console
+      addConsoleMessage('MCP package imported successfully');
       
-      // Refresh MCP servers and update UI
+      // Refresh the MCP servers list
       await refreshMcpServers();
       
-      // Select the imported MCP
-      selectMcpServer(result.mcpId);
-      
-      // If the MCP requires configuration, show the settings modal
-      if (result.hasConfig) {
-        setTimeout(() => {
-          showSettingsModal();
-        }, 500);
+      // Select the newly imported MCP
+      if (result.mcpId) {
+        selectMcpServer(result.mcpId);
+        addConsoleMessage(`
+MCP package imported: ${result.mcpId}
+To install this MCP, click the Install button. This will:
+1. Install any dependencies
+2. Configure the MCP for use with the selected AI tools
+3. Update the external configuration at C:\\Users\\<username>\\.cursor\\mcp.json
+`);
       }
     } else {
       // Show error message
       addConsoleMessage(`Import failed: ${result.message}`, true);
     }
   } catch (error) {
-    addConsoleMessage(`Import error: ${error.message}`, true);
+    console.error('Error importing MCP package:', error);
+    addConsoleMessage(`Error importing MCP package: ${error.message}`, true);
   }
 }
 

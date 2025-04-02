@@ -1,0 +1,30 @@
+{
+  "mcpServers": [
+    {
+      "id": "default-mcp",
+      "name": "Default MCP Server",
+      "description": "Pre-installed MCP server for demonstration",
+      "installed": false,
+      "running": false,
+      "type": "simple",
+      "version": "1.0.0",
+      "path": null,
+      "aiTools": [
+        { 
+          "id": "claude", 
+          "name": "Claude", 
+          "connected": false, 
+          "requiresCredentials": true 
+        },
+        { 
+          "id": "cursor", 
+          "name": "Cursor", 
+          "connected": false, 
+          "requiresCredentials": true 
+        }
+      ]
+    }
+  ],
+  "credentials": {},
+  "mcpSettings": {}
+} 
