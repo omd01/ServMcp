@@ -1,5 +1,5 @@
 {
-  "name": "ServMcp",
+  "name": "servmcp",
   "version": "1.0.2",
   "description": "A desktop application for managing MCP (Machine Completion Protocol) servers.",
   "main": "main.js",
@@ -22,7 +22,8 @@
     "type": "git",
     "url": "https://github.com/omd01/ServMcp"
   },
-  "author": "Your Name",
+  "author": "Om Dahale",
+  "autherEmail":"omdahale01@gmail.com",
   "license": "MIT",
   "devDependencies": {
     "electron": "^27.0.0",

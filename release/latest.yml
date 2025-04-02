@@ -1,0 +1,8 @@
+version: 1.0.2
+files:
+  - url: ServMcp-Setup-1.0.2.exe
+    sha512: qrKyjNDhfmoH7QCQTqwfdztqc5GKjgw1So6Y9SBfTtiCqLK5bVEXZ1vKKpMEfplBi6RTcGTGxGkfsnXpRybJog==
+    size: 68835552
+path: ServMcp-Setup-1.0.2.exe
+sha512: qrKyjNDhfmoH7QCQTqwfdztqc5GKjgw1So6Y9SBfTtiCqLK5bVEXZ1vKKpMEfplBi6RTcGTGxGkfsnXpRybJog==
+releaseDate: '2025-04-02T20:24:52.605Z'
