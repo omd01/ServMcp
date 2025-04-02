@@ -6,7 +6,11 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
-    "package": "electron-builder --dir"
+    "package": "electron-builder --dir",
+    "build:win": "electron-builder --win --publish never",
+    "build:mac": "electron-builder --mac --publish never",
+    "build:linux": "electron-builder --linux --publish never",
+    "publish": "electron-builder --publish always"
   },
   "keywords": [
     "mcp",
@@ -18,7 +22,7 @@
   "license": "MIT",
   "devDependencies": {
     "electron": "^27.0.0",
-    "electron-builder": "^24.6.4"
+    "electron-builder": "^22.14.13"
   },
   "dependencies": {
     "adm-zip": "^0.5.10",
@@ -26,19 +30,48 @@
     "uuid": "^9.0.1"
   },
   "build": {
-    "appId": "com.company.servmcp",
+    "appId": "com.mcp.servmcp",
     "productName": "ServMcp",
     "directories": {
       "output": "dist"
     },
-    "mac": {
-      "category": "public.app-category.developer-tools"
-    },
+    "files": [
+      "**/*",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/.bin",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!.editorconfig",
+      "!**/._*",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
+      "!**/{appveyor.yml,.travis.yml,circle.yml}",
+      "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
+    ],
     "win": {
-      "target": "nsis"
+      "target": [
+        "portable"
+      ],
+      "icon": "build/icon.ico",
+      "forceCodeSigning": false
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "zip"
+      ],
+      "icon": "build/icon.icns"
     },
     "linux": {
-      "target": "AppImage"
+      "target": [
+        "AppImage"
+      ],
+      "category": "Development"
+    },
+    "publish": {
+      "provider": "github",
+      "releaseType": "release"
     }
   }
 }
