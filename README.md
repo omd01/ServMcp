@@ -1,6 +1,6 @@
 # MCP Server Manager
 
-![MCP Server Manager](https://img.shields.io/badge/MCP-Server%20Manager-blue)
+![ServMcp](https://img.shields.io/badge/MCP-Server%20Manager-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 A desktop application for managing MCP (Machine Completion Protocol) servers that integrate with AI tools like Claude and Cursor.

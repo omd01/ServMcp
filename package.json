@@ -1,29 +1,44 @@
 {
-  "name": "mcp-manager",
+  "name": "ServMcp",
   "version": "1.0.0",
+  "description": "A desktop application for managing MCP (Machine Completion Protocol) servers.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "package": "electron-builder --dir"
   },
   "keywords": [
     "mcp",
-    "server",
-    "management",
-    "ai-tools"
+    "ai",
+    "claude",
+    "cursor"
   ],
-  "author": "",
-  "license": "ISC",
-  "description": "Management interface for MCP servers with AI tool integration",
+  "author": "Your Name",
+  "license": "MIT",
   "devDependencies": {
-    "electron": "^29.2.0",
-    "electron-builder": "^24.6.3"
+    "electron": "^27.0.0",
+    "electron-builder": "^24.6.4"
   },
   "dependencies": {
-    "adm-zip": "^0.5.16",
+    "adm-zip": "^0.5.10",
     "electron-store": "^8.1.0",
-    "extract-zip": "^2.0.1",
-    "js-yaml": "^4.1.0"
+    "uuid": "^9.0.1"
+  },
+  "build": {
+    "appId": "com.company.servmcp",
+    "productName": "ServMcp",
+    "directories": {
+      "output": "dist"
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   }
 }

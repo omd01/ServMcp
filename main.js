@@ -29,17 +29,27 @@ const defaultMcpConfig = {
   mcpSettings: {}
 };
 
+// Initialize the config store for basic settings
+const configStore = new Store({
+  name: 'ServMcp-config',
+  defaults: {
+    windowBounds: { width: 1200, height: 800 }
+  }
+});
+
 // Initialize persistent storage
 let store;
 try {
   store = new Store({
-    name: 'mcp-manager-config',
-    defaults: defaultMcpConfig
+    name: 'ServMcp-config',
+    defaults: {
+      servers: []
+    }
   });
   
   // Ensure the mcpServers array is populated
-  if (!store.has('mcpServers') || !Array.isArray(store.get('mcpServers')) || store.get('mcpServers').length === 0) {
-    store.set('mcpServers', defaultMcpConfig.mcpServers);
+  if (!store.has('servers') || !Array.isArray(store.get('servers')) || store.get('servers').length === 0) {
+    store.set('servers', defaultMcpConfig.mcpServers);
     console.log('Initialized default MCP servers');
   }
 } catch (error) {
@@ -47,7 +57,7 @@ try {
   
   // Try to delete the corrupted file
   try {
-    const configPath = path.join(app.getPath('userData'), 'mcp-manager-config.json');
+    const configPath = path.join(app.getPath('userData'), 'ServMcp-config.json');
     if (fs.existsSync(configPath)) {
       fs.unlinkSync(configPath);
       console.log('Deleted corrupted config file');
@@ -58,12 +68,14 @@ try {
   
   // Initialize with default config
   store = new Store({
-    name: 'mcp-manager-config',
-    defaults: defaultMcpConfig
+    name: 'ServMcp-config',
+    defaults: {
+      servers: defaultMcpConfig.mcpServers
+    }
   });
   
   // Reset to defaults
-  store.set('mcpServers', defaultMcpConfig.mcpServers);
+  store.set('servers', defaultMcpConfig.mcpServers);
   store.set('credentials', {});
   store.set('mcpSettings', {});
   console.log('Reset to default configuration');
@@ -74,7 +86,7 @@ let mainWindow;
 // Keep track of running MCP processes
 const mcpProcesses = {};
 
-// Define the local MCP directory
+// Set up base directory for MCP servers
 const mcpBaseDir = path.join(app.getPath('userData'), 'mcp-servers');
 
 // Ensure the MCP directory exists
@@ -183,7 +195,7 @@ async function detectMcpType(mcpDir) {
 
 // Get the list of available MCP servers
 ipcMain.handle('get-mcp-servers', () => {
-  return store.get('mcpServers');
+  return store.get('servers');
 });
 
 // Get MCP settings
@@ -204,10 +216,10 @@ ipcMain.handle('save-mcp-settings', (event, { mcpId, settings }) => {
         const externalConfig = JSON.parse(fileContent);
         
         // Check if this MCP exists in external config
-        if (externalConfig.mcpServers && externalConfig.mcpServers[mcpId]) {
+        if (externalConfig.servers && externalConfig.servers[mcpId]) {
           // Initialize env if it doesn't exist
-          if (!externalConfig.mcpServers[mcpId].env) {
-            externalConfig.mcpServers[mcpId].env = {};
+          if (!externalConfig.servers[mcpId].env) {
+            externalConfig.servers[mcpId].env = {};
           }
           
           // Add settings to environment variables 
@@ -220,7 +232,7 @@ ipcMain.handle('save-mcp-settings', (event, { mcpId, settings }) => {
                 key.toLowerCase().includes('password')) {
               
               // Store it as environment variable
-              externalConfig.mcpServers[mcpId].env[key.toUpperCase()] = settings[key];
+              externalConfig.servers[mcpId].env[key.toUpperCase()] = settings[key];
             }
           });
           
@@ -353,7 +365,7 @@ ipcMain.handle('import-mcp', async () => {
     }
     
     // Update MCP server list in store
-    const mcpServers = store.get('mcpServers') || [];
+    const mcpServers = store.get('servers') || [];
     console.log('Current MCP servers:', mcpServers);
     
     // Remove existing MCP with same ID if it exists
@@ -403,7 +415,7 @@ ipcMain.handle('import-mcp', async () => {
     }
     
     mcpServers.push(mcpServer);
-    store.set('mcpServers', mcpServers);
+    store.set('servers', mcpServers);
     console.log('Updated MCP servers list');
     
     return { 
@@ -440,7 +452,7 @@ function copyFolderRecursive(source, target) {
 
 // Install an MCP server
 ipcMain.handle('install-mcp', async (event, mcpId, selectedTools) => {
-  const mcpServers = store.get('mcpServers');
+  const mcpServers = store.get('servers');
   const mcpIndex = mcpServers.findIndex(mcp => mcp.id === mcpId);
   
   if (mcpIndex === -1) return { success: false, message: 'MCP server not found' };
@@ -1011,7 +1023,7 @@ process.on('SIGTERM', () => {
     
     // Mark the MCP as installed
     mcpServers[mcpIndex].installed = true;
-    store.set('mcpServers', mcpServers);
+    store.set('servers', mcpServers);
     
     // Update external MCP configuration if tools were selected
     if (selectedTools && selectedTools.length > 0) {
@@ -1020,7 +1032,7 @@ process.on('SIGTERM', () => {
         const externalConfigPath = path.join(app.getPath('home'), '.cursor', 'mcp.json');
         
         // Read the existing config if it exists
-        let externalConfig = { mcpServers: {} };
+        let externalConfig = { servers: {} };
         if (fs.existsSync(externalConfigPath)) {
           const fileContent = fs.readFileSync(externalConfigPath, 'utf8');
           try {
@@ -1030,9 +1042,9 @@ process.on('SIGTERM', () => {
           }
         }
         
-        // Make sure mcpServers exists
-        if (!externalConfig.mcpServers) {
-          externalConfig.mcpServers = {};
+        // Make sure servers exists
+        if (!externalConfig.servers) {
+          externalConfig.servers = {};
         }
         
         // Get API keys and credentials from settings
@@ -1066,7 +1078,7 @@ process.on('SIGTERM', () => {
         // Add or update the MCP configuration
         if (mcpId === 'mongodb-mcp' || mcpId === 'mongo-mcp') {
           // Special configuration for MongoDB MCP
-          externalConfig.mcpServers['mongodb'] = {
+          externalConfig.servers['mongodb'] = {
             command: 'npx',
             args: [
               'mongo-mcp',
@@ -1086,7 +1098,7 @@ process.on('SIGTERM', () => {
           const binIndexPath = path.join(mcpDir, 'bin', 'index.js');
           
           if (fs.existsSync(binIndexPath)) {
-            externalConfig.mcpServers[mcpId] = {
+            externalConfig.servers[mcpId] = {
               command: 'node',
               args: [binIndexPath],
               env: {...envVars} // Add API keys as environment variables
@@ -1100,7 +1112,7 @@ process.on('SIGTERM', () => {
             }
           } else {
             // Fallback to original main script if for some reason bin/index.js is still missing
-            externalConfig.mcpServers[mcpId] = {
+            externalConfig.servers[mcpId] = {
               command: 'node',
               args: [path.join(mcpDir, mcpServers[mcpIndex].mainScript)],
               env: {...envVars} // Add API keys as environment variables
@@ -1142,7 +1154,7 @@ process.on('SIGTERM', () => {
 
 // Start an MCP server
 ipcMain.handle('start-mcp', async (event, mcpId) => {
-  const mcpServers = store.get('mcpServers');
+  const mcpServers = store.get('servers');
   const mcpIndex = mcpServers.findIndex(mcp => mcp.id === mcpId);
   
   if (mcpIndex === -1) return { success: false, message: 'MCP server not found' };
@@ -1222,11 +1234,11 @@ ipcMain.handle('start-mcp', async (event, mcpId) => {
       }
       
       // Update the MCP server status
-      const updatedMcpServers = store.get('mcpServers');
+      const updatedMcpServers = store.get('servers');
       const updatedMcpIndex = updatedMcpServers.findIndex(mcp => mcp.id === mcpId);
       if (updatedMcpIndex !== -1) {
         updatedMcpServers[updatedMcpIndex].running = false;
-        store.set('mcpServers', updatedMcpServers);
+        store.set('servers', updatedMcpServers);
       }
       
       delete mcpProcesses[mcpId];
@@ -1237,7 +1249,7 @@ ipcMain.handle('start-mcp', async (event, mcpId) => {
     
     // Update the MCP server status
     mcpServers[mcpIndex].running = true;
-    store.set('mcpServers', mcpServers);
+    store.set('servers', mcpServers);
     
     return { success: true, message: 'MCP server started successfully' };
   } catch (error) {
@@ -1247,7 +1259,7 @@ ipcMain.handle('start-mcp', async (event, mcpId) => {
 
 // Stop an MCP server
 ipcMain.handle('stop-mcp', async (event, mcpId) => {
-  const mcpServers = store.get('mcpServers');
+  const mcpServers = store.get('servers');
   const mcpIndex = mcpServers.findIndex(mcp => mcp.id === mcpId);
   
   if (mcpIndex === -1) return { success: false, message: 'MCP server not found' };
@@ -1260,7 +1272,7 @@ ipcMain.handle('stop-mcp', async (event, mcpId) => {
     
     // Update the MCP server status
     mcpServers[mcpIndex].running = false;
-    store.set('mcpServers', mcpServers);
+    store.set('servers', mcpServers);
     
     return { success: true, message: 'MCP server stopped successfully' };
   } else {
@@ -1270,7 +1282,7 @@ ipcMain.handle('stop-mcp', async (event, mcpId) => {
 
 // Toggle AI tool connection
 ipcMain.handle('toggle-ai-tool', async (event, { mcpId, toolId }) => {
-  const mcpServers = store.get('mcpServers');
+  const mcpServers = store.get('servers');
   const mcpIndex = mcpServers.findIndex(mcp => mcp.id === mcpId);
   
   if (mcpIndex === -1) return { success: false, message: 'MCP server not found' };
@@ -1296,7 +1308,7 @@ ipcMain.handle('toggle-ai-tool', async (event, { mcpId, toolId }) => {
   
   // Toggle the connection status
   mcpServers[mcpIndex].aiTools[toolIndex].connected = !tool.connected;
-  store.set('mcpServers', mcpServers);
+  store.set('servers', mcpServers);
   
   // If connecting the tool, update the external config to include API keys
   if (mcpServers[mcpIndex].aiTools[toolIndex].connected) {
@@ -1317,14 +1329,14 @@ ipcMain.handle('toggle-ai-tool', async (event, { mcpId, toolId }) => {
             const externalConfig = JSON.parse(fileContent);
             
             // Check if this MCP exists in external config
-            if (externalConfig.mcpServers && externalConfig.mcpServers[mcpId]) {
+            if (externalConfig.servers && externalConfig.servers[mcpId]) {
               // Initialize env if it doesn't exist
-              if (!externalConfig.mcpServers[mcpId].env) {
-                externalConfig.mcpServers[mcpId].env = {};
+              if (!externalConfig.servers[mcpId].env) {
+                externalConfig.servers[mcpId].env = {};
               }
               
               // Add API key as environment variable
-              externalConfig.mcpServers[mcpId].env[apiKeyName.toUpperCase()] = mcpSettings[apiKeyName];
+              externalConfig.servers[mcpId].env[apiKeyName.toUpperCase()] = mcpSettings[apiKeyName];
               
               // Save the updated config
               fs.writeFileSync(externalConfigPath, JSON.stringify(externalConfig, null, 2));
@@ -1404,7 +1416,7 @@ async function safeRemoveDirectory(dirPath, maxRetries = 3) {
 
 // Uninstall an MCP server
 ipcMain.handle('uninstall-mcp', async (event, mcpId) => {
-  const mcpServers = store.get('mcpServers');
+  const mcpServers = store.get('servers');
   const mcpIndex = mcpServers.findIndex(mcp => mcp.id === mcpId);
   
   if (mcpIndex === -1) return { success: false, message: 'MCP server not found' };
@@ -1479,13 +1491,13 @@ ipcMain.handle('uninstall-mcp', async (event, mcpId) => {
           // Check if this MCP is MongoDB
           if (mcpId === 'mongodb-mcp' || mcpId === 'mongo-mcp') {
             // Remove mongodb entry
-            if (externalConfig.mcpServers && externalConfig.mcpServers.mongodb) {
-              delete externalConfig.mcpServers.mongodb;
+            if (externalConfig.servers && externalConfig.servers.mongodb) {
+              delete externalConfig.servers.mongodb;
             }
           } else {
             // Remove the MCP entry
-            if (externalConfig.mcpServers && externalConfig.mcpServers[mcpId]) {
-              delete externalConfig.mcpServers[mcpId];
+            if (externalConfig.servers && externalConfig.servers[mcpId]) {
+              delete externalConfig.servers[mcpId];
             }
           }
           
@@ -1522,7 +1534,7 @@ ipcMain.handle('uninstall-mcp', async (event, mcpId) => {
       mcpServers.splice(mcpIndex, 1);
     }
     
-    store.set('mcpServers', mcpServers);
+    store.set('servers', mcpServers);
     
     // Remove any settings for this MCP
     const settings = store.get('mcpSettings') || {};
