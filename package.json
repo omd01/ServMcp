@@ -1,6 +1,6 @@
 {
   "name": "ServMcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A desktop application for managing MCP (Machine Completion Protocol) servers.",
   "main": "main.js",
   "scripts": {
@@ -10,7 +10,7 @@
     "build:win": "electron-builder --win --publish never",
     "build:mac": "electron-builder --mac --publish never",
     "build:linux": "electron-builder --linux --publish never",
-    "publish": "electron-builder --publish always"
+    "release": "electron-builder --publish always"
   },
   "keywords": [
     "mcp",
@@ -18,11 +18,15 @@
     "claude",
     "cursor"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/omd01/ServMcp"
+  },
   "author": "Your Name",
   "license": "MIT",
   "devDependencies": {
     "electron": "^27.0.0",
-    "electron-builder": "^22.14.13"
+    "electron-builder": "^24.6.4"
   },
   "dependencies": {
     "adm-zip": "^0.5.10",
@@ -41,6 +45,7 @@
       "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
       "!**/node_modules/*.d.ts",
       "!**/node_modules/.bin",
+      "!dist/**/*",
       "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
       "!.editorconfig",
       "!**/._*",
@@ -51,27 +56,66 @@
     ],
     "win": {
       "target": [
-        "portable"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "build/icon.ico",
-      "forceCodeSigning": false
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "publisherName": "ServMcp"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ServMcp",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [
+        "dmg",
         "zip"
       ],
-      "icon": "build/icon.icns"
+      "icon": "build/icon.icns",
+      "artifactName": "${productName}-${version}.${ext}"
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "artifactName": "${productName}-${version}.${ext}"
     },
     "linux": {
       "target": [
         "AppImage"
       ],
-      "category": "Development"
+      "category": "Development",
+      "artifactName": "${productName}-${version}.${ext}"
     },
     "publish": {
       "provider": "github",
-      "releaseType": "release"
+      "owner": "omd01",
+      "repo": "ServMcp"
     }
   }
 }
