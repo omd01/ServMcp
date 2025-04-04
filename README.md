@@ -5,7 +5,8 @@
 
 A desktop application for managing MCP (Machine Completion Protocol) servers that integrate with AI tools like Claude and Cursor.
 
-![screenshot-placeholder](docs/images/screenshot.png)
+## Join Discord
+Discord - https://discord.gg/XrnPwMNP
 
 ## Features
 
